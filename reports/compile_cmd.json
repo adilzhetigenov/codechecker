@@ -1,0 +1,7 @@
+[
+  {
+    "directory": "/Users/andythejustice/University/Thesis",
+    "command": "gcc hello.c",
+    "file": "hello.c"
+  }
+]

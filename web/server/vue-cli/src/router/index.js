@@ -101,6 +101,12 @@ export default new Router({
 CheckerCoverageStatistics"),
             },
             {
+              path: "code-coverage",
+              name: "code-coverage-statistics",
+              component: () =>
+                import("@/components/Statistics/Coverage/CodeCoverageView"),
+            },
+            {
               path: "guideline",
               name: "guideline-statistics",
               component: () => import(

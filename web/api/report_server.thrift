@@ -1143,4 +1143,13 @@ service codeCheckerDBAccess {
   bool unsetCleanupPlan(1: i64          cleanupPlanId,
                         2: list<string> reportHashes)
                         throws (1: codechecker_api_shared.RequestFailed requestError),
+
+  // Get test coverage data (covered line numbers) for a given file.
+  // PERMISSION: PRODUCT_VIEW
+  list<i64> getTestCoverage(1: i64 fileId) throws (1: codechecker_api_shared.RequestFailed requestError),
+
+  // Get a list of files that have test coverage data.
+  // Returns a list of SourceFileData objects with fileId and filePath.
+  // PERMISSION: PRODUCT_VIEW
+  list<SourceFileData> getFilesWithCoverage() throws (1: codechecker_api_shared.RequestFailed requestError),
 }

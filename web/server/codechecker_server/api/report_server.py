@@ -69,7 +69,7 @@ from ..database.run_db_model import \
     File, FileContent, \
     Report, ReportAnnotations, ReportAnalysisInfo, ReviewStatus, \
     Run, RunHistory, RunHistoryAnalysisInfo, RunLock, \
-    SourceComponent
+    SourceComponent, TestCoverage
 
 from .common import exc_to_thrift_reqfail
 from .thrift_enum_helper import detection_status_enum, \
@@ -4380,3 +4380,51 @@ class ThriftRequestHandler:
             session.close()
 
             return True
+
+    @exc_to_thrift_reqfail
+    @timeit
+    def getTestCoverage(self, file_id):
+        self.__require_view()
+
+        with DBSession(self._Session) as session:
+            q = session \
+                .query(TestCoverage.covered_lines) \
+                .filter(TestCoverage.file_id == file_id)
+        return [row[0] for row in q.all()]
+
+    @exc_to_thrift_reqfail
+    @timeit
+    def getFilesWithCoverage(self):
+        """
+        Get a list of files that have test coverage data.
+        Returns a list of SourceFileData objects with fileId and filePath.
+        """
+        self.__require_view()
+
+        with DBSession(self._Session) as session:
+            # Get distinct file_ids from test_coverage table
+            q = session.query(TestCoverage.file_id.distinct())
+            file_ids = [row[0] for row in q.all()]
+
+            if not file_ids:
+                return []
+
+            # Get file information for these file_ids
+            files = session.query(File.id, File.filepath) \
+                .filter(File.id.in_(file_ids)) \
+                .order_by(File.filepath) \
+                .all()
+
+            # Convert to SourceFileData format
+            result = []
+            for file_id, filepath in files:
+                result.append(SourceFileData(
+                    fileId=file_id,
+                    filePath=filepath,
+                    fileContent=None,
+                    hasBlameInfo=False,
+                    remoteUrl=None,
+                    trackingBranch=None
+                ))
+
+            return result

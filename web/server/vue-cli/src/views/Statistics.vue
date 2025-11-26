@@ -98,6 +98,12 @@ export default {
         showCompareTo: false
       },
       {
+        name: "Code Coverage",
+        icon: "mdi-clipboard-check-outline",
+        to: { name: "code-coverage-statistics" },
+        showCompareTo: false
+      },
+      {
         name: "Guideline Statistics",
         icon: "mdi-clipboard-text-outline",
         to: { name: "guideline-statistics" },

@@ -599,13 +599,15 @@ def _do_db_cleanups(config_database, context, check_env) \
 
     thr_count = util.clamp(1, len(products), cpu_count())
     overall_result, failures = True, []
-    with Pool(max_workers=thr_count) as executor:
+    # with Pool(max_workers=thr_count) as executor:
+    with Pool() as executor:
         LOG.info("Performing database cleanup using %d concurrent jobs...",
                  thr_count)
+        f = partial(_do_db_cleanup, context, check_env)
         for product, result in \
                 zip(products, executor.map(
-                    partial(_do_db_cleanup, context, check_env),
-                    *zip(*products))):
+                    lambda t: f(*t),
+                    products)):
             success, reason = result
             if not success:
                 _, endpoint, _, _ = product

@@ -599,6 +599,20 @@ class CleanupPlanReportHash(Base):
     bug_hash = Column(String, primary_key=True)
 
 
+
+class TestCoverage(Base):  
+    __tablename__ = "test_coverage"
+    id = Column(Integer, autoincrement=True, primary_key=True)
+    file_id = Column(Integer, ForeignKey('files.id', deferrable=True,
+    initially="DEFERRED",
+    ondelete='CASCADE'), index=True)
+    covered_lines = Column(Integer)
+
+    def __init__(self, file_id, covererd_lines):
+        self.file_id = file_id
+        self.covered_lines = covererd_lines
+
+
 IDENTIFIER = {
     'identifier': "RunDatabase",
     'orm_meta': CC_META

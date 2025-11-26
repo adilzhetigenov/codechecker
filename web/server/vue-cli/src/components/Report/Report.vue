@@ -534,6 +534,16 @@ export default {
       if (!report)
         return;
 
+      // const CoveredLines = await new Promise(resolve => {
+      //   ccService.getClient().getTestCoverage(report.fileId, 
+      //     handleThriftError(result => {
+      //       resolve(result);
+      //     }));
+      // });
+      // Coverage lines retrieved for potential future use
+      // for (const x of CoveredLines)
+      //   console.log(Number.parseInt(x));
+
       this.report = report;
 
       await this.setSourceFileData(report.fileId);

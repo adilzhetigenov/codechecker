@@ -477,6 +477,11 @@ def assemble_zip(inputs,
             files_to_compress[os.path.dirname(review_status_file_path)]\
                 .add(review_status_file_path)
 
+        coverage = os.path.join(dir_path, 'coverage')
+        if os.path.exists(coverage):
+            files_to_compress[os.path.dirname(coverage)] \
+            .add(os.path.join(coverage, 'coverage.json'))
+
     LOG.debug(f"Processing {len(analyzer_result_file_paths)} report files ...")
 
     with Pool() as executor:

@@ -13,7 +13,7 @@ const CC_SERVICE_ENDPOINTS = [
 
 // Location of the Thrift API server.
 const CC_THRIFT_API_HOST =
-  process.env.CC_THRIFT_API_HOST || 'http://localhost';
+  process.env.CC_THRIFT_API_HOST || 'http://127.0.0.1';
 const CC_THRIFT_API_PORT = process.env.CC_THRIFT_API_PORT || 8002;
 
 module.exports = merge(common, {
@@ -26,6 +26,7 @@ module.exports = merge(common, {
   devServer: {
     port: 8080,
     hot: true,
+    liveReload: false, // Disable live reload in favor of HMR only
     historyApiFallback: {
       // If the URL contains a product endpoint and we server a static file
       // we will remove the rewrite the URL and remove the product endpoint

@@ -51,7 +51,8 @@ from ..database.run_db_model import \
     ExtendedReportData, \
     File, FileContent, \
     Report as DBReport, ReportAnnotations, ReviewStatus as ReviewStatusRule, \
-    Run, RunLock as DBRunLock, RunHistory
+    Run, RunLock as DBRunLock, RunHistory, \
+    TestCoverage
 from ..metadata import checker_is_unavailable, MetadataInfoParser
 
 from .report_annotations import report_annotation_types
@@ -536,7 +537,7 @@ class MassStoreRunInputHandler:
     def _store_run_lock(self):
         """Commits a `DBRunLock` for the to-be-stored `Run`, if available."""
         with DBSession(self._product_db) as session:
-            RunLock(session, self.run_name) \
+            DBRunLock(session, self.run_name) \
                 .store_run_lock_in_db(self.user_name)
 
 
@@ -1599,6 +1600,20 @@ class MassStoreRun:
             LOG.error(ex)
 
         return False
+    
+    def __add_coverage(self, coverage_file, file_path_to_id):
+        """Add test coverage data to the database."""
+        with open(coverage_file) as f:
+            data = json.load(f)
+
+        with DBSession(self.__product.session_factory) as session:
+            for file_path, lines in data.items():
+                if file_path not in file_path_to_id:
+                    continue
+                for line in lines:
+                    coverage = TestCoverage(file_path_to_id[file_path], line)
+                    session.add(coverage)
+            session.commit()
 
     def store(self,
               original_zip_size: int,
@@ -1632,6 +1647,11 @@ class MassStoreRun:
                     metadata_file_path = os.path.join(
                         root_dir_path, 'metadata.json')
 
+                    # Check for coverage file and process it
+                    coverage_file = os.path.join(root_dir_path, 'coverage.json')
+                    if os.path.exists(coverage_file):
+                        self.__add_coverage(coverage_file, file_path_to_id)
+
                     self.__mips[root_dir_path] = \
                         MetadataInfoParser(metadata_file_path)
 
@@ -1650,7 +1670,7 @@ class MassStoreRun:
                 # This session's transaction buffer stores the actual run data
                 # into the database.
                 with DBSession(self.__product.session_factory) as session, \
-                        RunLock(session, self._name):
+                        DBRunLock(session, self._name):
                     run_id, update_run = self.__add_or_update_run(
                         session, run_history_time)
 
@@ -1681,7 +1701,7 @@ class MassStoreRun:
                             additional_checkers)
 
                 with DBSession(self.__product.session_factory) as session, \
-                        RunLock(session, self._name):
+                        DBRunLock(session, self._name):
                     # The data of the run has been successfully committed
                     # into the database. Deal with post-processing issues
                     # that could only be done after-the-fact.
@@ -1744,7 +1764,7 @@ class MassStoreRun:
             # of the lock will allow further store operations to the given
             # run name.)
             with DBSession(self.__product.session_factory) as session:
-                RunLock(session, self._name).drop_run_lock_from_db()
+                DBRunLock(session, self._name).drop_run_lock_from_db()
 
             if self.__wrong_src_code_comments:
                 wrong_files_as_table = twodim.to_str(
