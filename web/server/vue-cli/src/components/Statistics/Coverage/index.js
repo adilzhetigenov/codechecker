@@ -1,6 +1,8 @@
 import CodeCoverageView from "./CodeCoverageView";
+import CoverageStatistics from "./CoverageStatistics";
 
 export {
-  CodeCoverageView
+  CodeCoverageView,
+  CoverageStatistics
 };
 

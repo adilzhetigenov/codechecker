@@ -52,3 +52,16 @@ TAGS
 
 # mkdocs
 site
+
+# Analysis reports and generated files (runtime)
+reports/
+*.plist
+*.gcda
+*.gcno
+*.gcov
+coverage.json
+test_coverage.json
+compile_cmd.json
+metadata.json
+unique_compile_commands.json
+compiler_info.json

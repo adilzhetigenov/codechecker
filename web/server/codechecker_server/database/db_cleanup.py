@@ -25,7 +25,8 @@ from .run_db_model import \
     BugPathEvent, BugReportPoint, \
     Comment, Checker, \
     File, FileContent, \
-    Report, ReportAnalysisInfo, RunHistoryAnalysisInfo, RunLock
+    Report, ReportAnalysisInfo, RunHistoryAnalysisInfo, RunLock, \
+    TestCoverage
 
 LOG = get_logger('server')
 RUN_LOCK_TIMEOUT_IN_DATABASE = 30 * 60  # 30 minutes.
@@ -92,9 +93,14 @@ def remove_unused_files(product):
                 .group_by(BugPathEvent.file_id)
             brp_files = session.query(BugReportPoint.file_id) \
                 .group_by(BugReportPoint.file_id)
+            # Don't delete files that have coverage data
+            coverage_files = session.query(TestCoverage.file_id) \
+                .group_by(TestCoverage.file_id)
 
             files_to_delete = session.query(File.id) \
-                .filter(File.id.notin_(bpe_files), File.id.notin_(brp_files))
+                .filter(File.id.notin_(bpe_files), 
+                       File.id.notin_(brp_files),
+                       File.id.notin_(coverage_files))
             files_to_delete = map(lambda x: x[0], files_to_delete)
 
             total_count = 0

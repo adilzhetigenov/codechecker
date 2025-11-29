@@ -104,6 +104,12 @@ CheckerCoverageStatistics"),
               path: "code-coverage",
               name: "code-coverage-statistics",
               component: () =>
+                import("@/components/Statistics/Coverage/CoverageStatistics"),
+            },
+            {
+              path: "code-coverage-file",
+              name: "code-coverage-file",
+              component: () =>
                 import("@/components/Statistics/Coverage/CodeCoverageView"),
             },
             {

@@ -47,7 +47,7 @@ from ..database.database import DBSession
 from ..database.run_db_model import \
     AnalysisInfo, AnalysisInfoChecker, AnalyzerStatistic, \
     BugPathEvent, BugReportPoint, \
-    Checker, \
+    Checker, File, \
     ExtendedReportData, \
     File, FileContent, \
     Report as DBReport, ReportAnnotations, ReviewStatus as ReviewStatusRule, \
@@ -537,7 +537,7 @@ class MassStoreRunInputHandler:
     def _store_run_lock(self):
         """Commits a `DBRunLock` for the to-be-stored `Run`, if available."""
         with DBSession(self._product_db) as session:
-            DBRunLock(session, self.run_name) \
+            RunLock(session, self.run_name) \
                 .store_run_lock_in_db(self.user_name)
 
 
@@ -1607,13 +1607,116 @@ class MassStoreRun:
             data = json.load(f)
 
         with DBSession(self.__product.session_factory) as session:
+            matched_count = 0
+            skipped_count = 0
+            duplicate_count = 0
+            
             for file_path, lines in data.items():
-                if file_path not in file_path_to_id:
+                file_id = None
+                
+                # Strategy 1: Try exact match in current store operation
+                if file_path in file_path_to_id:
+                    file_id = file_path_to_id[file_path]
+                else:
+                    # Strategy 2: Try trimmed path match in current store operation
+                    trimmed_path = trim_path_prefixes(
+                        file_path, self._trim_path_prefixes)
+                    if trimmed_path in file_path_to_id:
+                        file_id = file_path_to_id[trimmed_path]
+                    else:
+                        # Strategy 3: Query database for exact path match
+                        file_record = session.query(File) \
+                            .filter(File.filepath == file_path) \
+                            .first()
+                        if file_record:
+                            file_id = file_record.id
+                            LOG.debug(
+                                "Matched coverage file '%s' to database file "
+                                "by exact path (file_id: %d)",
+                                file_path, file_id)
+                        else:
+                            # Strategy 4: Query database for trimmed path match
+                            file_record = session.query(File) \
+                                .filter(File.filepath == trimmed_path) \
+                                .first()
+                            if file_record:
+                                file_id = file_record.id
+                                LOG.debug(
+                                    "Matched coverage file '%s' to database file "
+                                    "by trimmed path '%s' (file_id: %d)",
+                                    file_path, trimmed_path, file_id)
+                            else:
+                                # Strategy 5: Try filename match in current store
+                                file_name = os.path.basename(file_path)
+                                for stored_path, stored_id in file_path_to_id.items():
+                                    if os.path.basename(stored_path) == file_name:
+                                        file_id = stored_id
+                                        LOG.debug(
+                                            "Matched coverage file '%s' to stored "
+                                            "file '%s' by filename",
+                                            file_path, stored_path)
+                                        break
+                                
+                                # Strategy 6: Query database for filename match
+                                if file_id is None:
+                                    file_record = session.query(File) \
+                                        .filter(File.filename == file_name) \
+                                        .first()
+                                    if file_record:
+                                        file_id = file_record.id
+                                        LOG.debug(
+                                            "Matched coverage file '%s' to database file "
+                                            "by filename '%s' (file_id: %d)",
+                                            file_path, file_name, file_id)
+                
+                if file_id is None:
+                    LOG.warning(
+                        "Could not match coverage file '%s' to any "
+                        "stored file in database. Skipping coverage data for "
+                        "this file.",
+                        file_path)
+                    skipped_count += 1
                     continue
+                
+                matched_count += 1
+                
+                # Get existing coverage lines for this file to avoid duplicates
+                existing_lines = set(
+                    row[0] for row in session.query(TestCoverage.covered_lines)
+                    .filter(TestCoverage.file_id == file_id)
+                    .all()
+                )
+                
+                new_lines = []
                 for line in lines:
-                    coverage = TestCoverage(file_path_to_id[file_path], line)
+                    if line not in existing_lines:
+                        new_lines.append(line)
+                    else:
+                        duplicate_count += 1
+                
+                # Add only new coverage lines
+                for line in new_lines:
+                    coverage = TestCoverage(file_id, line)
                     session.add(coverage)
-            session.commit()
+                
+                if new_lines:
+                    LOG.debug(
+                        "Added %d new coverage lines for file '%s' "
+                        "(%d duplicates skipped)",
+                        len(new_lines), file_path, len(lines) - len(new_lines))
+            
+            if matched_count > 0:
+                session.commit()
+                LOG.info(
+                    "Stored coverage data for %d file(s). "
+                    "Skipped %d file(s) due to path mismatch. "
+                    "Skipped %d duplicate coverage lines.",
+                    matched_count, skipped_count, duplicate_count)
+            else:
+                LOG.warning(
+                    "No coverage data was stored. All %d file(s) in "
+                    "coverage.json could not be matched to stored files.",
+                    skipped_count)
 
     def store(self,
               original_zip_size: int,
@@ -1670,7 +1773,7 @@ class MassStoreRun:
                 # This session's transaction buffer stores the actual run data
                 # into the database.
                 with DBSession(self.__product.session_factory) as session, \
-                        DBRunLock(session, self._name):
+                        RunLock(session, self._name):
                     run_id, update_run = self.__add_or_update_run(
                         session, run_history_time)
 
@@ -1701,7 +1804,7 @@ class MassStoreRun:
                             additional_checkers)
 
                 with DBSession(self.__product.session_factory) as session, \
-                        DBRunLock(session, self._name):
+                        RunLock(session, self._name):
                     # The data of the run has been successfully committed
                     # into the database. Deal with post-processing issues
                     # that could only be done after-the-fact.
@@ -1764,7 +1867,7 @@ class MassStoreRun:
             # of the lock will allow further store operations to the given
             # run name.)
             with DBSession(self.__product.session_factory) as session:
-                DBRunLock(session, self._name).drop_run_lock_from_db()
+                RunLock(session, self._name).drop_run_lock_from_db()
 
             if self.__wrong_src_code_comments:
                 wrong_files_as_table = twodim.to_str(
