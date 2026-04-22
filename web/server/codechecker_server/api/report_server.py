@@ -4397,34 +4397,65 @@ class ThriftRequestHandler:
     def getFilesWithCoverage(self):
         """
         Get a list of files that have test coverage data.
-        Returns a list of SourceFileData objects with fileId and filePath.
+        Returns SourceFileData with line count in fileContent
+        and function stats as 'found/hit' in remoteUrl.
         """
         self.__require_view()
 
         with DBSession(self._Session) as session:
-            # Get distinct file_ids from test_coverage table
-            q = session.query(TestCoverage.file_id.distinct())
-            file_ids = [row[0] for row in q.all()]
+            from sqlalchemy import func
+            from codechecker_server.database.run_db_model import \
+                TestCoverageSummary
 
-            if not file_ids:
+            # Line counts (only positive = covered)
+            line_counts = dict(session.query(
+                TestCoverage.file_id,
+                func.count(TestCoverage.covered_lines)
+            ).filter(
+                TestCoverage.covered_lines > 0
+            ).group_by(TestCoverage.file_id).all())
+
+            # Function counts
+            func_data = {}
+            for row in session.query(TestCoverageSummary).all():
+                func_data[row.file_id] = (
+                    row.functions_found, row.functions_hit)
+
+            if not line_counts:
                 return []
 
-            # Get file information for these file_ids
             files = session.query(File.id, File.filepath) \
-                .filter(File.id.in_(file_ids)) \
-                .order_by(File.filepath) \
-                .all()
+                .filter(File.id.in_(line_counts.keys())) \
+                .order_by(File.filepath).all()
 
-            # Convert to SourceFileData format
             result = []
             for file_id, filepath in files:
+                lc = line_counts.get(file_id, 0)
+                ff, fh = func_data.get(file_id, (0, 0))
                 result.append(SourceFileData(
                     fileId=file_id,
                     filePath=filepath,
-                    fileContent=None,
+                    fileContent=str(lc),
                     hasBlameInfo=False,
-                    remoteUrl=None,
+                    remoteUrl=f"{ff}/{fh}" if ff > 0 else None,
                     trackingBranch=None
                 ))
 
             return result
+
+    @timeit
+    def getCoverageLineCountsForFiles(self):
+        """
+        Get covered line counts per file as a map of fileId -> count.
+        Single query, no source content fetching.
+        """
+        self.__require_view()
+
+        with DBSession(self._Session) as session:
+            from sqlalchemy import func
+            rows = session.query(
+                TestCoverage.file_id,
+                func.count(TestCoverage.covered_lines)
+            ).group_by(TestCoverage.file_id).all()
+
+            return {int(file_id): int(cnt) for file_id, cnt in rows}
