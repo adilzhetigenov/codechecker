@@ -469,9 +469,15 @@ export default {
           return;
         }
 
-        // fileContent carries covered line count, remoteUrl carries "fnf/fnh"
+        // fileContent carries "hit/total", remoteUrl carries "fnf/fnh"
         const validCoverageData = files.map(file => {
-          const lineHit = parseInt(file.fileContent, 10) || 0;
+          let lineHit = 0;
+          let lineTotal = 0;
+          if (file.fileContent) {
+            const lp = file.fileContent.split("/");
+            lineHit = parseInt(lp[0], 10) || 0;
+            lineTotal = parseInt(lp[1], 10) || lineHit;
+          }
           let fnFound = 0;
           let fnHit = 0;
           if (file.remoteUrl) {
@@ -486,8 +492,9 @@ export default {
             filePath: file.filePath,
             directory: dir,
             lineHit,
-            lineTotal: lineHit,
-            lineRate: lineHit > 0 ? 100 : 0,
+            lineTotal,
+            lineRate: lineTotal > 0
+              ? Math.round((lineHit / lineTotal) * 1000) / 10 : 0,
             functionTotal: fnFound,
             functionHit: fnHit,
             functionRate: fnFound > 0
@@ -559,6 +566,8 @@ export default {
         // Summary from aggregated data
         const totalHit = validCoverageData.reduce(
           (s, d) => s + d.lineHit, 0);
+        const totalLines = validCoverageData.reduce(
+          (s, d) => s + d.lineTotal, 0);
         const totalFnFound = validCoverageData.reduce(
           (s, d) => s + d.functionTotal, 0);
         const totalFnHit = validCoverageData.reduce(
@@ -566,8 +575,9 @@ export default {
 
         this.fetchedSummary = {
           testDate: new Date().toLocaleString(),
-          linesCoverage: 100,
-          linesTotal: totalHit,
+          linesCoverage: totalLines > 0
+            ? Math.round((totalHit / totalLines) * 1000) / 10 : 0,
+          linesTotal: totalLines,
           linesHit: totalHit,
           functionsCoverage: totalFnFound > 0
             ? Math.round((totalFnHit / totalFnFound) * 1000) / 10 : 0,

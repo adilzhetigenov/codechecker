@@ -4407,12 +4407,18 @@ class ThriftRequestHandler:
             from codechecker_server.database.run_db_model import \
                 TestCoverageSummary
 
-            # Line counts (only positive = covered)
-            line_counts = dict(session.query(
+            # Covered line counts (positive values)
+            covered_counts = dict(session.query(
                 TestCoverage.file_id,
                 func.count(TestCoverage.covered_lines)
             ).filter(
                 TestCoverage.covered_lines > 0
+            ).group_by(TestCoverage.file_id).all())
+
+            # Total executable line counts (positive + negative)
+            total_counts = dict(session.query(
+                TestCoverage.file_id,
+                func.count(TestCoverage.covered_lines)
             ).group_by(TestCoverage.file_id).all())
 
             # Function counts
@@ -4421,21 +4427,22 @@ class ThriftRequestHandler:
                 func_data[row.file_id] = (
                     row.functions_found, row.functions_hit)
 
-            if not line_counts:
+            if not total_counts:
                 return []
 
             files = session.query(File.id, File.filepath) \
-                .filter(File.id.in_(line_counts.keys())) \
+                .filter(File.id.in_(total_counts.keys())) \
                 .order_by(File.filepath).all()
 
             result = []
             for file_id, filepath in files:
-                lc = line_counts.get(file_id, 0)
+                hit = covered_counts.get(file_id, 0)
+                total = total_counts.get(file_id, 0)
                 ff, fh = func_data.get(file_id, (0, 0))
                 result.append(SourceFileData(
                     fileId=file_id,
                     filePath=filepath,
-                    fileContent=str(lc),
+                    fileContent=f"{hit}/{total}",
                     hasBlameInfo=False,
                     remoteUrl=f"{ff}/{fh}" if ff > 0 else None,
                     trackingBranch=None
