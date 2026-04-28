@@ -4449,20 +4449,3 @@ class ThriftRequestHandler:
                 ))
 
             return result
-
-    @timeit
-    def getCoverageLineCountsForFiles(self):
-        """
-        Get covered line counts per file as a map of fileId -> count.
-        Single query, no source content fetching.
-        """
-        self.__require_view()
-
-        with DBSession(self._Session) as session:
-            from sqlalchemy import func
-            rows = session.query(
-                TestCoverage.file_id,
-                func.count(TestCoverage.covered_lines)
-            ).group_by(TestCoverage.file_id).all()
-
-            return {int(file_id): int(cnt) for file_id, cnt in rows}

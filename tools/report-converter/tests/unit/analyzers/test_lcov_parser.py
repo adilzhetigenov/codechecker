@@ -52,10 +52,12 @@ class LcovAnalyzerResultTestCase(unittest.TestCase):
         self.assertIn(hello_key, data)
         self.assertIn(utils_key, data)
 
-        # hello.c: DA lines with exec_count > 0 are 3,4,6,8,10
-        self.assertEqual(data[hello_key], [3, 4, 6, 8, 10])
-        # utils.c: DA lines with exec_count > 0 are 1,2,7,11
-        self.assertEqual(data[utils_key], [1, 2, 7, 11])
+        # hello.c: covered=[3,4,6,8,10], uncovered=[5]
+        self.assertEqual(data[hello_key]['lines'], [3, 4, 6, 8, 10])
+        self.assertEqual(data[hello_key]['uncovered'], [5])
+        # utils.c: covered=[1,2,7,11], uncovered=[5,9]
+        self.assertEqual(data[utils_key]['lines'], [1, 2, 7, 11])
+        self.assertEqual(data[utils_key]['uncovered'], [5, 9])
 
     def test_transform_empty_file(self):
         """Test transforming an empty .info file produces no output."""

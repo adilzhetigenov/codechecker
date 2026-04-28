@@ -1152,9 +1152,4 @@ service codeCheckerDBAccess {
   // Returns a list of SourceFileData objects with fileId and filePath.
   // PERMISSION: PRODUCT_VIEW
   list<SourceFileData> getFilesWithCoverage() throws (1: codechecker_api_shared.RequestFailed requestError),
-
-  // Get coverage line counts per file (fileId -> number of covered lines).
-  // Lightweight alternative to calling getTestCoverage for each file.
-  // PERMISSION: PRODUCT_VIEW
-  map<i64, i64> getCoverageLineCountsForFiles() throws (1: codechecker_api_shared.RequestFailed requestError),
 }
