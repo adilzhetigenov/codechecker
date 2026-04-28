@@ -1669,6 +1669,36 @@ class MassStoreRun:
                                         file_id = file_record.id
                 
                 if file_id is None:
+                    # Try to store the source file if it exists on disk
+                    if os.path.isfile(file_path):
+                        try:
+                            with open(file_path, 'rb') as sf:
+                                content = sf.read()
+                            content_hash = sha256(
+                                content).hexdigest()
+                            if not session.query(FileContent) \
+                                    .filter(
+                                        FileContent.content_hash
+                                        == content_hash) \
+                                    .first():
+                                session.add(FileContent(
+                                    content_hash, content, None))
+                                session.flush()
+                            file_record = File(
+                                file_path, content_hash,
+                                None, None)
+                            session.add(file_record)
+                            session.flush()
+                            file_id = file_record.id
+                            LOG.info(
+                                "Stored source file '%s' for "
+                                "coverage data.", file_path)
+                        except Exception as ex:
+                            LOG.warning(
+                                "Failed to store source file "
+                                "'%s': %s", file_path, ex)
+
+                if file_id is None:
                     LOG.warning(
                         "Could not match coverage file '%s' to any "
                         "stored file in database. Skipping coverage data "
